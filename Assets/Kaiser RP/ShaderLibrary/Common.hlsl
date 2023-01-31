@@ -18,6 +18,10 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 
-
+float DistanceSquared(float3 a, float3 b)
+{
+    float3 d = a - b;
+    return dot(d, d);
+}
 
 #endif

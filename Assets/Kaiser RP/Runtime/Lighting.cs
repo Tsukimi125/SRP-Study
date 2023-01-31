@@ -105,8 +105,8 @@ public class Lighting
         dirLightShadowData[index] = shadows.ReserveDirectionalShadows(visibleLight.light, index); // 配置方向光的阴影
     }
 
-    public void Cleapup()
+    public void Cleanup()
     {
-        shadows.Cleapup();
+        shadows.Cleanup();
     }
 }

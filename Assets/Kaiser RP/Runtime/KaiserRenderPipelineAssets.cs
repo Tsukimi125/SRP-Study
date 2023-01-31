@@ -22,6 +22,8 @@ public class KaiserRenderPipelineAssets : RenderPipelineAsset
 
     [SerializeField]
     ShadowSettings shadowSettings = default;
+    [SerializeField]
+    PostFXSettings postFXSettings = default;
 
     protected override RenderPipeline CreatePipeline()
     {
@@ -29,8 +31,10 @@ public class KaiserRenderPipelineAssets : RenderPipelineAsset
             useSRPBatcher,
             useDynamicBatching,
             useGPUInstancing,
-            shadowSettings
+            shadowSettings,
+            postFXSettings
         );
+
         return new KaiserRenderPipeline(globalRenderSettings);
     }
 }

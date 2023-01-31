@@ -19,7 +19,10 @@ public class Shadows
 
 
     // 阴影参数
-    const int maxShadowedDirectionalLightCount = 4;
+    # region Shadow Parameters
+    const int maxShadowedDirectionalLightCount = 4,
+        maxCascades = 4;
+
     int ShadowedDirectionalLightCount;
     struct ShadowedDirectionalLight
     {
@@ -29,10 +32,31 @@ public class Shadows
     ShadowedDirectionalLight[] ShadowedDirectionalLights =
         new ShadowedDirectionalLight[maxShadowedDirectionalLightCount];
 
-    static int dirShadowAtlasId = Shader.PropertyToID("_DirectionalShadowAtlas");
-    static int dirShadowMatricesId = Shader.PropertyToID("_DirectionalShadowMatrices");
+    static int dirShadowAtlasId = Shader.PropertyToID("_DirectionalShadowAtlas"),
+        dirShadowMatricesId = Shader.PropertyToID("_DirectionalShadowMatrices"),
+        cascadeCountId = Shader.PropertyToID("_CascadeCount"),
+        cascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres"),
+        shadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade");
 
-    static Matrix4x4[] dirShadowMatrices = new Matrix4x4[maxShadowedDirectionalLightCount];
+    // 阴影split数量：一个shadowmap可以split成4个，最多4个光源的shadowmap，最多有16个
+    static Matrix4x4[] dirShadowMatrices = new Matrix4x4[maxShadowedDirectionalLightCount * maxCascades];
+
+    // 阴影裁剪球
+    static Vector4[] cascadeCullingSpheres = new Vector4[maxCascades];
+
+    # endregion
+
+
+    public void Setup(
+        ScriptableRenderContext context, CullingResults cullingResults,
+        ShadowSettings settings
+    )
+    {
+        this.context = context;
+        this.cullingResults = cullingResults;
+        this.settings = settings;
+        ShadowedDirectionalLightCount = 0;
+    }
 
     public Vector2 ReserveDirectionalShadows(Light light, int visibleLightIndex)
     {
@@ -47,20 +71,12 @@ public class Shadows
                 {
                     visibleLightIndex = visibleLightIndex
                 };
-            return new Vector2(light.shadowStrength, ShadowedDirectionalLightCount++);
+            return new Vector2(
+                light.shadowStrength,
+                settings.directional.cascadeCount * ShadowedDirectionalLightCount++
+            );
         }
         return Vector2.zero;
-    }
-
-    public void Setup(
-        ScriptableRenderContext context, CullingResults cullingResults,
-        ShadowSettings settings
-    )
-    {
-        this.context = context;
-        this.cullingResults = cullingResults;
-        this.settings = settings;
-        ShadowedDirectionalLightCount = 0;
     }
 
     public void Render()
@@ -105,7 +121,9 @@ public class Shadows
         ExecuteBuffer();
 
         // 判断是否需要分割ShadowMap
-        int split = ShadowedDirectionalLightCount <= 1 ? 1 : 2;
+        int tiles = ShadowedDirectionalLightCount * settings.directional.cascadeCount;
+        int split = tiles <= 1 ? 1 : tiles <= 4 ? 2 : 4;
+
         int tileSize = atlasSize / split;
 
         // 渲染每个方向光的阴影
@@ -114,8 +132,22 @@ public class Shadows
             RenderDirectionalShadows(i, split, tileSize);
         }
 
+        // 将级联数量和包围球数据发送到GPU着色器
+        cmd.SetGlobalInt(cascadeCountId, settings.directional.cascadeCount);
+        cmd.SetGlobalVectorArray(cascadeCullingSpheresId, cascadeCullingSpheres);
+
         // 设置阴影矩阵
         cmd.SetGlobalMatrixArray(dirShadowMatricesId, dirShadowMatrices);
+
+        // 设置阴影最大距离和过渡
+        float oneMinusCascadeFade = 1f - settings.directional.cascadeFade;
+        cmd.SetGlobalVector(shadowDistanceFadeId,
+            new Vector4(
+                1f / settings.maxDistance,
+                1f / settings.distanceFade,
+                1f / (1f - oneMinusCascadeFade * oneMinusCascadeFade)
+            )
+        );
 
         cmd.EndSample(bufferName);
         ExecuteBuffer();
@@ -168,33 +200,59 @@ public class Shadows
 
         // 设置阴影相机的绘制设置
         var shadowDrawingSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex, projectionType);
-        cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
-            light.visibleLightIndex, 0, 1, Vector3.zero, tileSize, 0f,
-            out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix,
-            out ShadowSplitData splitData
-        );
 
-        // 设置阴影相机的split
-        shadowDrawingSettings.splitData = splitData;
 
-        // 设置阴影相机的视图投影矩阵
-        dirShadowMatrices[index] = ConvertToAtlasMatrix(
-            projectionMatrix * viewMatrix,
-            SetTileViewport(index, split, tileSize),
-            split
-        );
+        int cascadeCount = settings.directional.cascadeCount;
+        int tileOffset = index * cascadeCount;
+        Vector3 cascadeRatios = settings.directional.CascadeRatios;
 
-        // 设置阴影相机的视图投影矩阵
-        cmd.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
+        for (int i = 0; i < cascadeCount; i++)
+        {
+            cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                light.visibleLightIndex, i, cascadeCount, cascadeRatios, tileSize, 0f,
+                out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix,
+                out ShadowSplitData splitData
+            );
 
-        ExecuteBuffer();
+            // 设置阴影相机的裁剪球。因为所有的阴影相机都是同一个设置，所以只需要设置一次
+            if (index == 0)
+            {
+                cascadeCullingSpheres[i] = splitData.cullingSphere;
+            }
 
-        // 绘制阴影
-        context.DrawShadows(ref shadowDrawingSettings);
+            Vector4 cullingSphere = splitData.cullingSphere;
+            // w是半径，平方得到半径的平方值
+            cullingSphere.w *= cullingSphere.w;
+            cascadeCullingSpheres[i] = cullingSphere;
+
+
+            // 设置阴影相机的split
+            shadowDrawingSettings.splitData = splitData;
+
+            // 设置tile的索引
+            int tileIndex = tileOffset + i;
+
+            // 设置阴影相机的视图投影矩阵
+            dirShadowMatrices[tileIndex] = ConvertToAtlasMatrix(
+                projectionMatrix * viewMatrix,
+                SetTileViewport(tileIndex, split, tileSize),
+                split
+            );
+
+            // 设置阴影相机的视图投影矩阵
+            cmd.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
+
+            //cmd.SetGlobalDepthBias(500000f, 0f);
+
+            // 绘制阴影
+            ExecuteBuffer();
+            context.DrawShadows(ref shadowDrawingSettings);
+            //cmd.SetGlobalDepthBias(0f, 0f);
+        }
     }
 
     // 释放阴影RenderTexture内存
-    public void Cleapup()
+    public void Cleanup()
     {
         cmd.ReleaseTemporaryRT(dirShadowAtlasId);
         ExecuteBuffer();

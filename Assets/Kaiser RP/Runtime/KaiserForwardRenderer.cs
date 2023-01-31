@@ -21,6 +21,9 @@ public partial class KaiserForwardRenderer
     Lighting lighting = new Lighting();
 
 
+    PostFXStack postFXStack = new PostFXStack();
+    static int frameBufferId = Shader.PropertyToID("_CameraFrameBuffer");
+
     public void Render(ScriptableRenderContext context, Camera camera, GlobalRenderSettings globalRenderSettings)
     {
         this.context = context;
@@ -36,6 +39,10 @@ public partial class KaiserForwardRenderer
 
         // 配置光照、阴影
         lighting.Setup(context, cullingResults, globalRenderSettings.shadowSettings);
+
+        // 配置后处理
+        postFXStack.Setup(context, camera, globalRenderSettings.postFXSettings);
+
         cmd.EndSample(SampleName);
 
         // 正式开始渲染，配置相机等
@@ -45,10 +52,16 @@ public partial class KaiserForwardRenderer
         DrawVisibleGeometry(globalRenderSettings);
 
         DrawUnsupportedShaders();
-        DrawGizmos();
 
-        // 释放阴影RenderTexture内存
-        lighting.Cleapup();
+        DrawGizmosBeforeFX();
+
+        if (postFXStack.IsActive)
+        {
+            postFXStack.Render(frameBufferId);
+        }
+        DrawGizmosAfterFX();
+
+        Cleanup();
         Submit();
     }
 
@@ -61,6 +74,25 @@ public partial class KaiserForwardRenderer
 
         // Clear
         CameraClearFlags flags = camera.clearFlags;
+
+        if (postFXStack.IsActive)
+        {
+            // 为防止在前一帧的结果中绘制，此处清除颜色和深度
+            if (flags > CameraClearFlags.Color)
+            {
+                flags = CameraClearFlags.Color;
+            }
+
+            cmd.GetTemporaryRT(
+                frameBufferId, camera.pixelWidth, camera.pixelHeight,
+                32, FilterMode.Bilinear, RenderTextureFormat.Default
+            );
+            cmd.SetRenderTarget(
+                frameBufferId,
+                RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
+            );
+        }
+
         cmd.ClearRenderTarget(
             flags <= CameraClearFlags.Depth,
             flags == CameraClearFlags.Color,
@@ -113,7 +145,18 @@ public partial class KaiserForwardRenderer
     }
 
     partial void DrawUnsupportedShaders();
-    partial void DrawGizmos();
+    partial void DrawGizmosBeforeFX();
+    partial void DrawGizmosAfterFX();
+
+    void Cleanup()
+    {
+        // 释放阴影RenderTexture内存
+        lighting.Cleanup();
+        if (postFXStack.IsActive)
+        {
+            cmd.ReleaseTemporaryRT(frameBufferId);
+        }
+    }
     public void Submit()
     {
         cmd.EndSample(SampleName);

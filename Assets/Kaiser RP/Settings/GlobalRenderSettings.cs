@@ -8,17 +8,20 @@ public class GlobalRenderSettings
     public bool useDynamicBatching = true;
     public bool useGPUInstancing = true;
     public ShadowSettings shadowSettings;
+    public PostFXSettings postFXSettings;
 
     public GlobalRenderSettings(
         bool useSRPBatcher,
         bool useDynamicBatching,
         bool useGPUInstancing,
-        ShadowSettings shadowSettings
+        ShadowSettings shadowSettings,
+        PostFXSettings postFXSettings
     )
     {
         this.useSRPBatcher = useSRPBatcher;
         this.useDynamicBatching = useDynamicBatching;
         this.useGPUInstancing = useGPUInstancing;
         this.shadowSettings = shadowSettings;
+        this.postFXSettings = postFXSettings;
     }
 }
