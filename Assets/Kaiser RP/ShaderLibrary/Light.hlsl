@@ -14,6 +14,8 @@ CBUFFER_START(_KaiserLight)
     int _MainLightIndex;
     float4 _MainLightPosition;
     float4 _MainLightColor;
+
+    int _DebugCascade;
 CBUFFER_END
 
 struct Light
@@ -42,6 +44,7 @@ DirectionalShadowData GetDirectionalShadowData(int lightIndex, ShadowData shadow
     DirectionalShadowData dirShadowData;
     dirShadowData.strength = _DirectionalLightShadowData[lightIndex].x * shadowData.strength;
     dirShadowData.tileIndex = _DirectionalLightShadowData[lightIndex].y + shadowData.cascadeIndex;
+    dirShadowData.normalBias = _DirectionalLightShadowData[lightIndex].z;
     return dirShadowData;
 }
 
@@ -51,9 +54,10 @@ Light GetDirectionalLight(int index, Surface surfaceWS, ShadowData shadowData)
     light.color = _DirectionalLightColors[index].rgb;
     light.direction = _DirectionalLightDirections[index].xyz;
     DirectionalShadowData dirShadowData = GetDirectionalShadowData(index, shadowData);
-    light.attenuation = GetDirectionalShadowAttenuation(dirShadowData, surfaceWS);
+    light.attenuation = GetDirectionalShadowAttenuation(dirShadowData, shadowData, surfaceWS);
+
     // DEBUG CASCADE
-    // light.attenuation = shadowData.cascadeIndex * 0.25;
+    light.attenuation = lerp(light.attenuation, shadowData.cascadeIndex * 0.25, _DebugCascade);
     return light;
 }
 

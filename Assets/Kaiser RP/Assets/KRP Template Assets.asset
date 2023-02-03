@@ -17,13 +17,14 @@ MonoBehaviour:
   useGPUInstancing: 1
   renderPipelineType: 0
   shadowSettings:
-    maxDistance: 150
-    distanceFade: 0.001
+    maxDistance: 120
+    distanceFade: 0.282
     directional:
-      atlasSize: 512
-      cascadeCount: 3
+      atlasSize: 1024
+      cascadeCount: 1
       cascadeRatio1: 0.5
       cascadeRatio2: 0.6
       cascadeRatio3: 0.7
-      cascadeFade: 0.1
+      cascadeFade: 0.15
+      debugCascade: 0
   postFXSettings: {fileID: 11400000, guid: cf90ea21a6b449c45863600a2f6bbe3e, type: 2}

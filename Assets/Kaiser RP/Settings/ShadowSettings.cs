@@ -28,6 +28,7 @@ public class ShadowSettings
         public float cascadeFade;
         public Vector3 CascadeRatios =>
                 new Vector3(cascadeRatio1, cascadeRatio2, cascadeRatio3);
+        public bool debugCascade;
     }
 
     public Directional directional = new Directional
@@ -37,8 +38,9 @@ public class ShadowSettings
         cascadeRatio1 = 0.1f,
         cascadeRatio2 = 0.25f,
         cascadeRatio3 = 0.5f,
-        cascadeFade = 0.1f
-};
+        cascadeFade = 0.1f,
+        debugCascade = false
+    };
 
 
 }

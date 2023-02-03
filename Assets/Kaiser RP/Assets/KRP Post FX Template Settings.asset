@@ -12,3 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 41e85bf92c370ea4599e93a893c066c0, type: 3}
   m_Name: KRP Post FX Template Settings
   m_EditorClassIdentifier: 
+  shader: {fileID: 4800000, guid: 1d9a742a497f61b4187dc2d572797de6, type: 3}
+  bloom:
+    maxIterations: 1
+    downscaleLimit: 2
+    threshold: 0.9
+    thresholdKnee: 0.5
+    intensity: 1.43
+    scatter: 0
