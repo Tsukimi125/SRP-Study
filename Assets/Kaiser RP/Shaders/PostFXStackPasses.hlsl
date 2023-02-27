@@ -105,7 +105,6 @@ float4 BloomHorizontalPassFragment(Varyings input) : SV_Target
     }
 
     return float4(color, 1.0);
-    
 }
 
 float4 BloomVerticalPassFragment(Varyings input) : SV_Target
